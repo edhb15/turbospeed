@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Turbo Speed</title>
+<style>
+body { margin:0; overflow:hidden; background:#87ceeb; }
+#hud {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-family: Arial, sans-serif;
+  color: white;
+}
+
+.panel {
+  background: rgba(0,0,0,0.6);
+  padding: 15px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+.controls {
+  margin-top: 10px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+/* START SCREEN */
+#startScreen {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(#1e3c72, #2a5298);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.menuPanel {
+  text-align: center;
+  background: rgba(0,0,0,0.7);
+  padding: 40px;
+  border-radius: 20px;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+.menuButton {
+
+  background: linear-gradient(to right, red, blue);
+  background-size: 200% 100%;
+  box-shadow:
+    0 0 10px rgba(0, 242, 254, 0.6),
+    0 0 20px rgba(0, 242, 254, 0.4);
+  animation: slide 3s linear infinite alternate;
+}
+button:hover {
+  box-shadow:
+    0 0 20px rgba(0, 242, 254, 0.9),
+    0 0 40px rgba(0, 242, 254, 0.6);
+}
+@keyframes slide {
+  from {
+    background-position: left;
+  }
+  to {
+    background-position: right;
+  }
+}
+.gameTitle {
+  font-size: 48px;
+  font-weight: bold;
+  margin-bottom: 30px;
+  letter-spacing: 3px;
+
+
+  color: #6fd3ff;
+
+  filter: drop-shadow(0 0 15px currentColor);
+
+  background: linear-gradient(to right, rgb(255, 149, 0), rgb(200, 0, 255));
+  background-size: 200% 100%;
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+
+  animation: slide 3s ease-in-out infinite alternate;
+}
+
+@keyframes slide {
+  from {
+    background-position: right;
+  }
+  to {
+    background-position: left;
+  }
+}
+
+.menuButton {
+  display: block;
+  width: 220px;
+  margin: 15px auto;
+  padding: 15px;
+  font-size: 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.menuButton:hover {
+  transform: scale(1.05);
+}
+
+.controlsPanel {
+  display: none;
+  margin-top: 20px;
+  font-size: 16px;
+}
+</style>
+</head>
+<body>
+    <!-- START SCREEN -->
+<div id="startScreen">
+    <div class="menuPanel">
+      <h1 class="gameTitle">TURBO SPEED</h1>
+      
+      <button id="startBtn" class="menuButton">Start Game</button>
+      <button id="controlsBtn" class="menuButton">Controls</button>
+  
+      <div id="controlsPanel" class="controlsPanel">
+        <h2>Controls</h2>
+        <p>W = Accelerate</p>
+        <p>S = Brake / Reverse</p>
+        <p>A = Turn Left</p>
+        <p>D = Turn Right</p>
+        <p>Jump on the jump to get and fly as high and long you can to get jump bonus!</p>
+      </div>
+    </div>
+  </div>
+    <div id="hud">
+        <div class="panel">
+          <div>Speed: <span id="speed">0</span> km/h</div>
+          <div>Money: $<span id="money">0</span></div> 
+          <div>Distance: <span id="distance">0</span> m</div>
+        </div>
+        <div class="controls">WASD to drive • Hit ramp for jump bonus</div>
+      </div>
+<script type="module">
+    let gameStarted = false;
+
+// Hide HUD at start
+document.getElementById("hud").style.display = "none";
+
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+let scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x87ceeb, 50, 400);
+scene.background = new THREE.Color(0x87ceeb);
+
+let camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(0,6,15);
+
+let renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1));
+let light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(10,20,10);
+scene.add(light);
+
+// Ground
+let groundMesh = new THREE.Mesh(
+new THREE.PlaneGeometry(50,1000),
+new THREE.MeshStandardMaterial({color:0x444444})
+);
+groundMesh.rotation.x = -Math.PI/2;
+groundMesh.position.set(0,-1,0);
+scene.add(groundMesh);
+//second ground
+let groundMesh2 = new THREE.Mesh(
+new THREE.PlaneGeometry(50,10000),
+new THREE.MeshStandardMaterial({color:0x444444})
+);
+groundMesh2.rotation.x = -Math.PI/2;
+groundMesh2.position.set(0,-1,-1300);
+scene.add(groundMesh2);
+
+// Ramp (jump)
+let rampMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(50, 1, 40),
+  new THREE.MeshStandardMaterial({color:0x555555})
+);
+
+// Position ramp at end of track
+rampMesh.position.set(1, 7, -500);
+rampMesh.rotation.x = Math.PI / 3; // tilt upward
+scene.add(rampMesh);
+
+let boostPad = new THREE.Mesh(
+  new THREE.BoxGeometry(10,0.2,10),
+  new THREE.MeshStandardMaterial({color:0x00ff00, emissive:0x00aa00})
+);
+boostPad.position.set(0, -0.9, -300);
+scene.add(boostPad);
+
+const geometry = new THREE.PlaneGeometry(16/10, 9/10, 16, 16);
+const positions = geometry.attributes.position;
+for(let i = 0; i < 1000; i++){
+  let stripe = new THREE.Mesh(
+    new THREE.PlaneGeometry(2,5),
+    new THREE.MeshStandardMaterial({color:0xffffff})
+  );
+  stripe.rotation.x = -Math.PI/2;
+  stripe.position.set(0, -0.99, -i * 20);
+  scene.add(stripe);
+}
+// ===== BETTER CAR =====
+let car = new THREE.Group();
+
+// Body
+let body = new THREE.Mesh(
+  new THREE.BoxGeometry(2.2, 0.8, 4.5),
+  new THREE.MeshStandardMaterial({ 
+    color: 0xff2d2d,
+    metalness: 0.6,
+    roughness: 0.3
+  })
+);
+body.position.y = 1.2;
+car.add(body);
+
+// Cabin
+let cabin = new THREE.Mesh(
+  new THREE.BoxGeometry(1.6, 0.6, 2),
+  new THREE.MeshStandardMaterial({ 
+    color: 0x111111,
+    metalness: 0.9,
+    roughness: 0.2
+  })
+);
+cabin.position.set(0, 1.8, -0.3);
+car.add(cabin);
+
+// Wheels
+let wheelMeshes = [];
+const wheelPositions = [
+  [-1.1, 0.6, 2],
+  [1.1, 0.6, 2],
+  [-1.1, 0.6, -2],
+  [1.1, 0.6, -2]
+];
+
+wheelPositions.forEach(pos => {
+  let wheel = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5,0.5,0.5,24),
+    new THREE.MeshStandardMaterial({color:0x000000})
+  );
+  wheel.rotation.z = Math.PI/2;
+  wheel.position.set(...pos);
+  car.add(wheel);
+  wheelMeshes.push(wheel);
+});
+
+// Headlights
+let headlight = new THREE.PointLight(0xffffff, 1, 10);
+headlight.position.set(0,1.3,2.5);
+car.add(headlight);
+
+//exahst 
+let exhaust = new THREE.Mesh(
+  new THREE.SphereGeometry(0.3,16,16),
+  new THREE.MeshBasicMaterial({color:0xff6600})
+);
+exhaust.position.set(0,1,-2.6);
+car.add(exhaust);
+
+scene.add(car);
+// Car state
+const acceleration = 0.01;
+const brakeDecel = 0.04;
+let verticalVelocity = 0;
+let gravity = -0.02;
+let isOnGround = true;
+let money = 0;
+let maxJumpHeight = 0;
+let distance = 0;
+let velocity = new THREE.Vector3();
+let accelerationForce = 0.015;
+let maxSpeed = 2.5;
+let friction = 0.9899;
+let turnSpeed = 0.04;
+let driftFactor = 0.92;
+let time = 0;
+
+setInterval(() => {
+  if (!gameStarted) return;   // only count after game starts
+
+  time++;
+  console.log("Time:", time); // debug
+
+  if (time >= 15) {
+    time = 0;    
+    car.position.set(0, 0.5, 0);
+    velocity.set(0,0,0);
+  }
+}, 1000);
+
+// Controls
+let keys = {};
+addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+function updateControls(){
+
+// ACCELERATION
+if(keys["w"]) {
+  velocity.z += accelerationForce * 1.25;
+}
+
+if(keys["s"]) {
+  velocity.z -= accelerationForce;
+}
+
+// CLAMP SPEED
+velocity.z = THREE.MathUtils.clamp(velocity.z, -maxSpeed, maxSpeed);
+
+// TURNING depends on speed
+let steerStrength = Math.abs(velocity.z) * 2;
+
+if(keys["a"]) {
+  car.rotation.y += turnSpeed * steerStrength;
+}
+
+if(keys["d"]) {
+  car.rotation.y -= turnSpeed * steerStrength;
+}
+
+// APPLY FRICTION
+velocity.z *= friction;
+
+// MOVE CAR FORWARD IN ITS DIRECTION
+let forward = new THREE.Vector3(0, 0, -1);
+forward.applyQuaternion(car.quaternion);
+
+car.position.addScaledVector(forward, velocity.z);
+}
+function resetCar(){
+  car.position.set(0, 0.5, 0);
+  car.Rotation.x = 0;
+  speed = 0;
+  verticalVelocity = 0;
+  isOnGround = true;
+}
+// MENU BUTTONS
+document.getElementById("startBtn").onclick = () => {
+  document.getElementById("startScreen").style.display = "none";
+  document.getElementById("hud").style.display = "block";
+  gameStarted = true;
+};
+
+document.getElementById("controlsBtn").onclick = () => {
+  let panel = document.getElementById("controlsPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+};
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  if(gameStarted){
+  updateControls();
+}
+
+  
+document.getElementById("speed").innerHTML = Math.abs(velocity.z * 500).toFixed(0);
+document.getElementById("money").innerHTML = Math.floor(money);
+distance += Math.abs(velocity.z) * 5;
+document.getElementById("distance").innerText = Math.floor(distance);
+
+
+// Clamp values so it doesn't break
+friction = Math.max(friction, 0.94);
+turnSpeed = Math.min(turnSpeed, 0.12);
+  
+if(car.position.z < -475 && car.position.z > -520){
+  verticalVelocity = Math.abs(velocity.z) * 1.5;
+  isOnGround = false;
+}
+// Apply gravity if airborne
+if(!isOnGround){
+  car.rotation.z += 0.1; // flip trick
+}
+if(isOnGround){
+    car.rotation.z = 0;
+}
+if(!isOnGround){
+  verticalVelocity += gravity;
+  car.position.y += verticalVelocity;
+
+  // Track max height during jump
+  if(car.position.y > maxJumpHeight){
+    maxJumpHeight = car.position.y;
+  }
+
+  // Land back on ground
+  if(car.position.y <= 0.5){
+    car.position.y = 0.5;
+    verticalVelocity = 0;
+    isOnGround = true;
+
+    let jumpReward = Math.floor(maxJumpHeight * 50);
+    money += jumpReward;
+
+    maxJumpHeight = 0; 
+  }
+}
+
+// Camera FOV boost at high speed
+camera.fov = 75 + Math.abs(velocity.z) * 40;
+camera.updateProjectionMatrix();
+// Boost collision
+if(
+  Math.abs(car.position.x - boostPad.position.x) < 5 &&
+  Math.abs(car.position.z - boostPad.position.z) < 5
+){
+  velocity.z += 0.25;
+}
+
+  // Track boundaries
+const trackHalfWidth = 25;   // Plane width 50 / 2
+const trackEndZ = -3000;     // End of second ground
+if(
+  car.position.x > trackHalfWidth ||
+  car.position.x < -trackHalfWidth ||
+  car.position.z < trackEndZ ||
+  car.position.y < -5
+){
+  car.position.set(0, 0.5, 0);
+  velocity.set(0,0,0);
+}
+exhaust.scale.setScalar(1 + Math.abs(velocity.z) * 0.3);
+  
+  // Animate wheels (rotate based on speed)
+  
+  wheelMeshes.forEach(wheel => {
+  wheel.rotation.x += velocity.z * 10;
+});
+  
+  // Camera follow
+  let camOffset = new THREE.Vector3(0,5,12);
+camOffset.applyQuaternion(car.quaternion);
+let targetPosition = car.position.clone().add(camOffset);
+
+camera.position.lerp(targetPosition, 0.08);
+camera.lookAt(car.position);
+
+console.log(car);
+renderer.render(scene, camera);
+}
+animate();
+
+</script>
+</body>
+</html>
